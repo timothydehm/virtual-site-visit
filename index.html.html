@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Site Walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root{
+  --bg:#1c1d1b; --panel:#252724; --panel2:#2e312d; --line:#3a3d38;
+  --text:#ecece8; --muted:#a3a69d; --accent:#7cc24f; --accent-d:#4f8a2c;
+  --link:#5cc8ec; --hi:#ffd23f; --bad:#e8735a;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:15px/1.45 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+a{color:var(--link)}
+button{font:inherit;color:inherit;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:6px 11px;cursor:pointer;white-space:nowrap}
+button:hover{border-color:var(--accent)}
+button:disabled{opacity:.4;cursor:default;border-color:var(--line)}
+button.primary{background:var(--accent-d);border-color:var(--accent)}
+button.ghost{background:transparent}
+
+#app{display:flex;flex-direction:column;height:100%}
+header{display:flex;align-items:center;gap:10px;padding:8px 14px;border-bottom:1px solid var(--line);background:var(--panel);flex-wrap:wrap}
+header h1{font-size:17px;font-weight:600;margin:0 8px 0 0;white-space:nowrap}
+#tourTitle{color:var(--muted);font-size:14px;max-width:26ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#nav{display:flex;align-items:center;gap:8px;margin:0 auto}
+#counter{min-width:250px;text-align:center}
+#counter .n{font-weight:700;font-size:18px;color:var(--accent)}
+#counter .a{display:block;font-size:13px;color:var(--muted);max-width:340px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:auto}
+#tools{display:flex;gap:6px;flex-wrap:wrap}
+
+#main{flex:1;min-height:0;display:grid;grid-template-columns:1fr 400px;grid-template-rows:40% 60%;grid-template-areas:"sv map" "sv card"}
+#svWrap{grid-area:sv;position:relative;background:#000;min-height:0}
+#mapWrap{grid-area:map;position:relative;border-left:1px solid var(--line);min-height:0}
+#card{grid-area:card;overflow:auto;border-left:1px solid var(--line);border-top:1px solid var(--line);background:var(--panel);padding:14px 16px 20px}
+#sv{width:100%;height:100%;border:0;display:block}
+#map{position:absolute;inset:0;background:#111}
+#svMsg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;text-align:center;color:var(--muted);padding:30px;pointer-events:none}
+#svBtns{position:absolute;left:10px;bottom:28px;display:flex;gap:6px}
+#svBtns button{background:rgba(20,21,19,.85);font-size:13px;padding:5px 10px}
+#btnAll{position:absolute;top:8px;right:8px;z-index:500;background:rgba(30,31,29,.9);font-size:12px;padding:4px 8px}
+
+#card h2{margin:0 0 2px;font-size:20px;font-weight:600;line-height:1.25}
+#card .sub{color:var(--muted);font-size:13px;margin-bottom:10px}
+#card .sub b{color:var(--accent);font-weight:600}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin:6px 0 12px}
+.chip{font-size:12px;padding:2px 9px;border-radius:999px;border:1px solid var(--line);background:var(--panel2)}
+.chip.g{border-color:var(--accent-d);color:#cdeab9}
+.chip.y{border-color:#8a7420;color:#f3e3a4}
+.note{border-left:3px solid var(--accent);background:var(--panel2);padding:8px 10px;border-radius:0 8px 8px 0;margin:0 0 12px;min-height:20px;outline:none;white-space:pre-wrap}
+.note:empty:before{content:attr(data-ph);color:var(--muted)}
+dl{display:grid;grid-template-columns:110px 1fr;gap:6px 12px;margin:0 0 14px;font-size:14px}
+dt{color:var(--muted)}
+dd{margin:0;word-break:break-word}
+.links{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:14px;padding-top:10px;border-top:1px solid var(--line)}
+.src{font-size:11.5px;color:var(--muted);margin-top:12px}
+.warn{color:var(--bad)}
+
+#drawer{position:fixed;top:0;bottom:0;left:0;width:360px;max-width:90vw;background:var(--panel);border-right:1px solid var(--line);z-index:1500;transform:translateX(-102%);transition:transform .2s;display:flex;flex-direction:column}
+#drawer.open{transform:none}
+#drawer .hd{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;border-bottom:1px solid var(--line)}
+#siteList{list-style:none;margin:0;padding:6px;overflow:auto;flex:1}
+#siteList li{display:flex;gap:10px;padding:8px;border-radius:8px;cursor:pointer;align-items:flex-start}
+#siteList li:hover{background:var(--panel2)}
+#siteList li.on{background:#33402b}
+#siteList .num{flex:0 0 26px;height:26px;border-radius:50%;background:var(--panel2);border:1px solid var(--line);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+#siteList li.on .num{background:var(--hi);color:#111;border-color:var(--hi)}
+#siteList .t{font-size:14px}
+#siteList .m{font-size:12px;color:var(--muted)}
+
+#setup{position:fixed;inset:0;z-index:2000;background:rgba(10,11,10,.86);display:none;align-items:flex-start;justify-content:center;overflow:auto;padding:5vh 16px}
+#setup.open{display:flex}
+#setup .box{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:760px;width:100%;padding:22px 24px}
+#setup h2{margin:0 0 4px;font-weight:600}
+#setup p{color:var(--muted);margin:4px 0 14px}
+#setup label{display:block;font-size:13px;color:var(--muted);margin:12px 0 4px}
+#setup input[type=text],#setup textarea{width:100%;font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:9px 11px}
+#setup textarea{min-height:240px;font-family:ui-monospace,Consolas,monospace;font-size:13.5px;line-height:1.55}
+#setup .row{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+#setup .help{font-size:13px;color:var(--muted);background:var(--bg);border-radius:8px;padding:10px 12px;margin-top:12px}
+#setup .help code{color:var(--text)}
+#progress{color:var(--accent);font-size:14px}
+#drop.over{outline:2px dashed var(--accent)}
+
+.pin{background:#1c1d1b;color:#fff;border:2px solid #fff;border-radius:50%;width:24px!important;height:24px!important;margin:-12px 0 0 -12px!important;display:flex;align-items:center;justify-content:center;font:700 11px Inter,sans-serif;box-shadow:0 1px 4px rgba(0,0,0,.6)}
+.pin.on{background:var(--hi);color:#111;border-color:#111;width:30px!important;height:30px!important;margin:-15px 0 0 -15px!important;font-size:13px}
+.leaflet-container{font-family:Inter,sans-serif}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:var(--accent-d);border:1px solid var(--accent);padding:8px 14px;border-radius:10px;z-index:3000;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+
+@media (max-width:860px){
+  #main{grid-template-columns:1fr;grid-template-rows:46% 30% auto;grid-template-areas:"sv" "map" "card";overflow:auto}
+  #card{border-left:0}
+  #counter{min-width:0}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>Virtual Site Walkthrough</h1>
+    <div id="tourTitle"></div>
+    <div id="nav">
+      <button id="prev" title="Previous site (← or Page Up)">◀ Prev</button>
+      <div id="counter"><span class="n">–</span><span class="a">Add sites to begin</span></div>
+      <button id="next" class="primary" title="Next site (→, Space or Page Down)">Next ▶</button>
+    </div>
+    <div id="tools">
+      <button id="btnList" title="Site list (L)">☰ Sites</button>
+      <button id="btnEdit" title="Edit the site list">✎ Edit list</button>
+      <button id="btnLink" title="Copy a link that reopens this tour">🔗 Copy link</button>
+      <button id="btnCsv" title="Download property data for all sites">⤓ CSV</button>
+      <button id="btnFull" title="Full screen (F)">⛶</button>
+    </div>
+  </header>
+
+  <div id="main">
+    <div id="svWrap">
+      <iframe id="sv" allowfullscreen referrerpolicy="no-referrer-when-downgrade" title="Street View"></iframe>
+      <div id="svMsg">Paste a list of parcels to start the walkthrough.</div>
+      <div id="svBtns">
+        <button id="reset" title="Back to the starting view, facing the lot (R)">↺ Face the lot</button>
+        <button id="gmaps" title="Open this view in Google Maps">↗ Google Maps</button>
+      </div>
+    </div>
+    <div id="mapWrap">
+      <div id="map"></div>
+      <button id="btnAll" title="Zoom to all sites">All sites</button>
+    </div>
+    <div id="card"></div>
+  </div>
+</div>
+
+<aside id="drawer">
+  <div class="hd"><b>Sites</b><button class="ghost" id="closeDrawer">✕</button></div>
+  <ol id="siteList"></ol>
+</aside>
+
+<div id="setup">
+  <div class="box" id="drop">
+    <h2>Build a walkthrough</h2>
+    <p>One site per line — parcel numbers, street addresses, or coordinates. Add a note after a <code>|</code> or a tab and it shows on that site's card.</p>
+    <label for="inTitle">Tour title (optional)</label>
+    <input type="text" id="inTitle" placeholder="e.g. Candidate lots — Oct 2026">
+    <label for="inList">Sites</label>
+    <textarea id="inList" spellcheck="false" placeholder="129-19-056 | neighbor interested in side lot
+11907 Honeydale Ave
+41.4790, -81.5997"></textarea>
+    <div class="help">
+      Works with <code>129-19-056</code>, <code>12919056</code>, <code>11907 Honeydale Ave, Cleveland</code>, or <code>41.479, -81.5997</code>.
+      You can paste straight from Excel (first column = site, second = note) or drop a CSV with a <code>parcel</code>/<code>ppn</code>, <code>address</code>, or <code>lat</code>/<code>lon</code> column.
+    </div>
+    <div class="row">
+      <button class="primary" id="go">Start walkthrough</button>
+      <input type="file" id="file" accept=".csv,.txt,.tsv" hidden><button type="button" id="btnFile">Load CSV…</button>
+      <button id="cancel" class="ghost">Cancel</button>
+      <span id="progress"></span>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   Virtual Site Walkthrough
+   - Parcels: Cuyahoga County Fiscal Office open parcel service
+   - Streets: OpenStreetMap (Overpass) — used only to place the Street View
+     camera on the street in front of the lot and point it at the parcel
+   - Street View: Google keyless embed; map: Esri imagery
+   ===================================================================== */
+const COUNTY = 'https://gis.cuyahogacounty.gov/server/rest/services/Open_Data_Parcels/MapServer/';
+const COUNTY_LAYERS = [0, 1];               // 0 = Cleveland, 1 = rest of county
+const FIELDS = ['parcelpin','par_addr_all','par_addr','par_street','par_city','par_zip',
+  'deeded_owner','mail_addr_street','mail_unit','mail_city','mail_state','mail_zip',
+  'ext_luc','ext_luc_description','tax_luc','tax_luc_description','zoning_code',
+  'total_acreage','total_square_ft','total_legal_front','res_bldg_count','com_bldg_count','total_res_liv_area','total_com_use_area',
+  'gross_certified_land','gross_certified_building','gross_certified_total','certified_exempt_total','certified_abated_total','tax_year',
+  'transfer_date','sales_amount','grantor','tax_abatement'].join(',');
+const ROADS = 'https://tims.dot.state.oh.us/ags/rest/services/Roadway_Information/Road_Inventory/FeatureServer/0/query'; // ODOT road inventory (all public roads in Ohio)
+const OVERPASS = ['https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];   // backup only — often slow
+const HIGHWAYS = '^(trunk|primary|secondary|tertiary|unclassified|residential|living_street)(_link)?$';
+
+const S = { title:'', sites:[], i:0, map:null, layers:{}, token:0 };
+const $ = id => document.getElementById(id);
+
+/* ---------------- utilities ---------------- */
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtPPN = p => /^\d{8}$/.test(p) ? `${p.slice(0,3)}-${p.slice(3,5)}-${p.slice(5)}` : p;
+const money = n => (n==null || isNaN(n)) ? '—' : '$' + Math.round(n).toLocaleString();
+const num = n => (n==null || isNaN(n)) ? '—' : Number(n).toLocaleString();
+const clean = s => String(s ?? '').replace(/\s+/g,' ').trim();
+const title = s => clean(s).toLowerCase().replace(/\b([a-z])/g, m => m.toUpperCase()).replace(/\b(Oh|Llc|Inc|Ii|Iii|Po)\b/g, m=>m.toUpperCase());
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(t._h); t._h=setTimeout(()=>t.classList.remove('show'),2400); }
+function b64e(str){ return btoa(unescape(encodeURIComponent(str))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
+function b64d(str){ str=str.replace(/-/g,'+').replace(/_/g,'/'); while(str.length%4) str+='='; return decodeURIComponent(escape(atob(str))); }
+
+/* ---------------- input parsing ---------------- */
+function classify(q){
+  const ll = q.match(/^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/);
+  if (ll) return { kind:'ll', lat:+ll[1], lng:+ll[2] };
+  if (/^[\d\s-]+[A-Za-z]?$/.test(q)) {
+    let d = q.replace(/[\s-]/g,'').toUpperCase();
+    if (/^\d{7}[A-Z]?$/.test(d)) d = '0' + d;          // Excel dropped a leading zero
+    if (/^\d{8}[A-Z]?$/.test(d)) return { kind:'ppn', ppn:d };
+  }
+  return { kind:'addr' };
+}
+function parseLines(text){
+  const out = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const l = raw.trim(); if (!l || l.startsWith('#')) continue;
+    let q = l, note = '', m;
+    if ((m = l.match(/^([^\t|]*?)\s*(?:\t+|\|)\s*(.*)$/))) { q = m[1].trim(); note = m[2].replace(/\t+/g,' · ').trim(); }
+    else if ((m = l.match(/^(\d{3}-?\d{2}-?\d{3}[A-Za-z]?)\s*,\s*(.+)$/))) { q = m[1]; note = m[2].trim(); }
+    if (q) out.push({ q, note });
+  }
+  return out;
+}
+function parseCSV(text){
+  const rows=[]; let row=[], f='', inq=false;
+  for (let i=0;i<text.length;i++){
+    const c=text[i];
+    if (inq){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else inq=false; } else f+=c; }
+    else if (c==='"') inq=true;
+    else if (c===','||c==='\t'){ row.push(f); f=''; }
+    else if (c==='\n'){ row.push(f); rows.push(row); row=[]; f=''; }
+    else if (c!=='\r') f+=c;
+  }
+  if (f || row.length){ row.push(f); rows.push(row); }
+  return rows.filter(r => r.some(x => x.trim()));
+}
+function csvToLines(text){
+  const rows = parseCSV(text); if (!rows.length) return '';
+  const h = rows[0].map(x => x.trim().toLowerCase());
+  const find = re => h.findIndex(x => re.test(x));
+  const iP = find(/^(parcel.?(id|num|number|pin)?|ppn|pin|parcelpin|parcel_id|apn)$/), iA = find(/^(site.?)?address|par_addr/),
+        iLa = find(/^(lat|latitude|y)$/), iLo = find(/^(lon|lng|long|longitude|x)$/), iN = find(/^(note|notes|comment|comments|description|name|label)$/);
+  if (iP<0 && iA<0 && (iLa<0||iLo<0)) return rows.map(r => r.filter(Boolean).join(' | ')).join('\n');
+  return rows.slice(1).map(r => {
+    const q = iP>=0 && r[iP]?.trim() ? r[iP].trim() : (iA>=0 && r[iA]?.trim() ? r[iA].trim() : (iLa>=0 && iLo>=0 && r[iLa] ? `${r[iLa].trim()}, ${r[iLo].trim()}` : ''));
+    const note = iN>=0 ? (r[iN]||'').trim() : '';
+    return q ? q + (note ? ' | ' + note : '') : '';
+  }).filter(Boolean).join('\n');
+}
+
+/* ---------------- county parcel service ---------------- */
+let jsonpN = 0;
+function jsonp(url){
+  return new Promise((res, rej) => {
+    const cb = '__vsw' + (++jsonpN), s = document.createElement('script');
+    const t = setTimeout(() => { cleanup(); rej(new Error('timeout')); }, 20000);
+    function cleanup(){ clearTimeout(t); delete window[cb]; s.remove(); }
+    window[cb] = d => { cleanup(); res(d); };
+    s.onerror = () => { cleanup(); rej(new Error('network')); };
+    s.src = url + '&callback=' + cb; document.head.appendChild(s);
+  });
+}
+async function arcgisQuery(url, params){
+  const p = new URLSearchParams({ returnGeometry:'true', outSR:'4326', f:'json', ...params });
+  let j;
+  try {
+    const r = await fetch(url, { method:'POST', body:p });
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    j = await r.json();
+  } catch (e) {
+    j = await jsonp(url + '?' + p.toString());
+  }
+  if (j.error) throw new Error(j.error.message || 'Service error');
+  return j.features || [];
+}
+const countyQuery = (layer, params) => arcgisQuery(COUNTY + layer + '/query', { outFields:FIELDS, ...params });
+async function byPPN(ppns){
+  const found = {};
+  for (const layer of COUNTY_LAYERS) {
+    const need = ppns.filter(p => !found[p]); if (!need.length) break;
+    for (let k=0; k<need.length; k+=80) {
+      const chunk = need.slice(k, k+80);
+      const feats = await countyQuery(layer, { where: `parcelpin IN (${chunk.map(p=>`'${p}'`).join(',')})` });
+      for (const f of feats) if (!found[f.attributes.parcelpin]) found[f.attributes.parcelpin] = f;
+    }
+  }
+  return found;
+}
+const DIRS = new Set(['E','W','N','S','EAST','WEST','NORTH','SOUTH','NE','NW','SE','SW']);
+const SUFF = new Set(['AVE','AV','AVENUE','ST','STREET','RD','ROAD','DR','DRIVE','BLVD','BOULEVARD','CT','COURT','PL','PLACE','LN','LANE','PKWY','PARKWAY','TER','TERRACE','TERR','WAY','CIR','CIRCLE','SQ','HWY','TRL','TRAIL','ROW','WALK','OVAL']);
+function streetCore(s){
+  const t = String(s||'').toUpperCase().replace(/[.,#']/g,' ').split(/\s+/).filter(Boolean);
+  while (t.length > 1 && DIRS.has(t[0])) t.shift();
+  while (t.length > 1 && (SUFF.has(t[t.length-1]) || DIRS.has(t[t.length-1]))) t.pop();
+  return t.map(w => w.replace(/^(\d+)(ST|ND|RD|TH)$/, '$1')).join(' ');   // "116TH" -> "116" (county stores E 116 ST)
+}
+async function byAddress(q){
+  const main = q.split(',')[0].trim();
+  const m = main.match(/^(\d+)[A-Za-z]?(?:\s*-\s*\d+)?\s+(.+)$/);
+  if (!m) return null;
+  const n = m[1], core = streetCore(m[2]).replace(/'/g,"''");
+  if (!core) return null;
+  const first = core.split(' ')[0];
+  for (const layer of COUNTY_LAYERS) {
+    const feats = await countyQuery(layer, { where: `(par_addr='${n}' OR par_addr LIKE '${n}-%' OR par_addr LIKE '%-${n}') AND par_street LIKE '${first}%'` });
+    if (feats.length) {
+      const exact = feats.find(f => streetCore(f.attributes.par_street) === core) || feats[0];
+      const cityHint = (q.split(',')[1] || '').trim().toUpperCase();
+      return (cityHint && feats.find(f => (f.attributes.par_city||'').toUpperCase().startsWith(cityHint))) || exact;
+    }
+  }
+  return null;
+}
+async function byPoint(lat, lng){
+  for (const layer of COUNTY_LAYERS) {
+    const feats = await countyQuery(layer, { geometry:`${lng},${lat}`, geometryType:'esriGeometryPoint', inSR:'4326', spatialRel:'esriSpatialRelIntersects' });
+    if (feats.length) return feats[0];
+  }
+  return null;
+}
+async function geocode(q){
+  const query = /cleveland|ohio|\boh\b|\d{5}/i.test(q) ? q : q + ', Cuyahoga County, Ohio';
+  const r = await fetch('https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q=' + encodeURIComponent(query));
+  const j = await r.json();
+  return j[0] ? { lat:+j[0].lat, lng:+j[0].lon, label:j[0].display_name } : null;
+}
+
+/* ---------------- geometry ---------------- */
+function applyFeature(site, f){
+  site.attrs = f.attributes; site.ppn = f.attributes.parcelpin;
+  const rings = (f.geometry && f.geometry.rings) || [];
+  site.rings = rings.map(r => r.map(([x,y]) => [y,x]));
+  let best = null;                       // centroid of the largest ring, in local meters
+  for (const r of rings) {
+    const lat0 = r[0][1], lng0 = r[0][0], kx = 111320*Math.cos(lat0*Math.PI/180), ky = 110540;
+    let A=0, cx=0, cy=0;
+    for (let i=0, j=r.length-1; i<r.length; j=i++) {
+      const xi=(r[i][0]-lng0)*kx, yi=(r[i][1]-lat0)*ky, xj=(r[j][0]-lng0)*kx, yj=(r[j][1]-lat0)*ky, c = xj*yi - xi*yj;
+      A += c; cx += (xi+xj)*c; cy += (yi+yj)*c;
+    }
+    if (!A) continue;
+    const area = Math.abs(A/2);
+    if (!best || area > best.area) best = { area, lat: lat0 + (cy/(3*A))/ky, lng: lng0 + (cx/(3*A))/kx };
+  }
+  if (best) site.center = [best.lat, best.lng];
+  else if (rings.length) site.center = [rings[0][0][1], rings[0][0][0]];
+}
+
+/* ---------------- facing the lot ----------------
+   Find the street the lot fronts on (the one matching its county address,
+   otherwise the nearest), stand on it at the point closest to the lot, and
+   face the lot. Every site in the tour is lined up in the background right
+   after loading, so the view is already pointed at the lot when you arrive. */
+async function odotWays(lat, lng, radius){
+  const feats = await arcgisQuery(ROADS, {
+    geometry:`${lng},${lat}`, geometryType:'esriGeometryPoint', inSR:'4326', spatialRel:'esriSpatialRelIntersects',
+    distance:String(radius), units:'esriSRUnit_Meter', where:"ROUTE_TYPE IS NULL OR ROUTE_TYPE <> 'IR'",
+    outFields:'STREET_PREFIX_DIR_CD,STREET_NAME,STREET_SUFFIX_CD,ROUTE_TYPE,ROUTE_NBR'
+  });
+  const ways = [];
+  for (const f of feats) {
+    const a = f.attributes || {};
+    const name = [a.STREET_PREFIX_DIR_CD, a.STREET_NAME, a.STREET_SUFFIX_CD].filter(Boolean).join(' ') || `${a.ROUTE_TYPE||''} ${a.ROUTE_NBR||''}`.trim();
+    for (const path of (f.geometry && f.geometry.paths) || []) ways.push({ tags:{ name }, geometry: path.map(c => ({ lat:c[1], lon:c[0] })) });
+  }
+  return ways;
+}
+async function overpassWays(lat, lng, radius){
+  const q = `[out:json][timeout:25];way(around:${radius},${lat.toFixed(6)},${lng.toFixed(6)})[highway~"${HIGHWAYS}"];out geom;`;
+  let lastErr;
+  for (const u of OVERPASS) {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 12000);
+      const res = await fetch(u, { method:'POST', body:new URLSearchParams({ data:q }), signal:ctl.signal });
+      clearTimeout(t);
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return (await res.json()).elements || [];
+    } catch (e) { lastErr = e; }
+  }
+  throw lastErr || new Error('street lookup failed');
+}
+function aimFromWays(site, ways, maxD){
+  const [lat0, lng0] = site.center, kx = 111320*Math.cos(lat0*Math.PI/180), ky = 110540;
+  const byName = {};
+  for (const w of ways) {
+    if (!w.geometry || w.geometry.length < 2) continue;
+    const name = (w.tags && (w.tags.name || w.tags.ref)) || '';
+    const pts = w.geometry.map(g => [(g.lon-lng0)*kx, (g.lat-lat0)*ky]);
+    for (let i=0; i<pts.length-1; i++) {
+      const [ax,ay]=pts[i], [bx,by]=pts[i+1], dx=bx-ax, dy=by-ay, L2=dx*dx+dy*dy; if (!L2) continue;
+      const t = Math.max(0, Math.min(1, -(ax*dx+ay*dy)/L2)), x=ax+t*dx, y=ay+t*dy, d=Math.hypot(x,y);
+      if (d <= maxD && (!byName[name] || d < byName[name].d)) byName[name] = { name, d, x, y };
+    }
+  }
+  const addr = site.attrs && site.attrs.par_street ? streetCore(site.attrs.par_street) : '';
+  const cands = Object.values(byName).map(c => {
+    const oc = streetCore(c.name);
+    c.match = !!addr && !!oc && (oc === addr || oc.split(' ')[0] === addr.split(' ')[0]);
+    return c;
+  }).sort((a,b) => (b.match - a.match) || (a.d - b.d));
+  const c = cands[0];
+  if (!c) return false;
+  site.cam = {
+    lat: lat0 + c.y/ky, lng: lng0 + c.x/kx,
+    heading: Math.round((Math.atan2(-c.x, -c.y) * 180/Math.PI) + 360) % 360,
+    street: c.name
+  };
+  return true;
+}
+async function aimSite(site){
+  const [lat, lng] = site.center;
+  try { if (aimFromWays(site, await odotWays(lat, lng, 110), 110)) return; } catch (e) {}
+  try { if (aimFromWays(site, await odotWays(lat, lng, 300), 300)) return; } catch (e) {}
+  try { aimFromWays(site, await overpassWays(lat, lng, 250), 250); } catch (e) {}
+}
+function ensureAim(site){
+  if (site.cam || !site.center) return Promise.resolve();
+  if (!site._aimP) site._aimP = aimSite(site).finally(() => { site._aimP = null; });
+  return site._aimP;
+}
+async function prefetchAim(sites){
+  const queue = sites.filter(s => s.center && !s.cam);
+  const worker = async () => { while (queue.length) await ensureAim(queue.shift()); };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+}
+function view(site){
+  if (site.cam) return site.cam;
+  return { lat: site.center[0], lng: site.center[1], heading: 0 };
+}
+function svURL(v){ return `https://www.google.com/maps?layer=c&cbll=${v.lat.toFixed(6)},${v.lng.toFixed(6)}&cbp=11,${v.heading.toFixed(0)},0,0,0&output=svembed`; }
+function gmapsPano(v){ return `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${v.lat.toFixed(6)},${v.lng.toFixed(6)}&heading=${v.heading.toFixed(0)}&pitch=0&fov=80`; }
+
+/* ---------------- map ---------------- */
+function initMap(){
+  const map = L.map('map').setView([41.48,-81.68], 12);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { maxZoom:21, maxNativeZoom:19, attribution:'Imagery © Esri' }).addTo(map);
+  L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}', { maxZoom:21, maxNativeZoom:19, opacity:.9 }).addTo(map);
+  S.map = map;
+}
+function drawSites(){
+  for (const k in S.layers) S.layers[k].remove();
+  S.layers = {};
+  const all = [];
+  S.sites.forEach((s, i) => {
+    if (!s.center) return;
+    const g = L.featureGroup();
+    if (s.rings && s.rings.length) L.polygon(s.rings, { color:'#ffffff', weight:2, fillOpacity:.08, fillColor:'#ffffff' }).addTo(g);
+    L.marker(s.center, { icon:L.divIcon({ className:'pin', html:String(i+1) }) }).addTo(g);
+    g.on('click', () => go(i));
+    g.addTo(S.map); S.layers[i] = g; all.push(s.center);
+  });
+  S.allBounds = all.length ? L.latLngBounds(all) : null;
+}
+function highlight(){
+  S.sites.forEach((s, i) => {
+    const g = S.layers[i]; if (!g) return;
+    g.eachLayer(l => {
+      if (l instanceof L.Polygon) l.setStyle(i === S.i ? { color:'#ffd23f', weight:4, fillOpacity:.18, fillColor:'#ffd23f' } : { color:'#ffffff', weight:2, fillOpacity:.08, fillColor:'#ffffff' });
+      if (l instanceof L.Marker) { const el = l.getElement(); if (el) el.classList.toggle('on', i === S.i); l.setZIndexOffset(i === S.i ? 1000 : 0); }
+    });
+  });
+}
+
+/* ---------------- rendering ---------------- */
+function siteLabel(s){
+  if (s.attrs && clean(s.attrs.par_addr_all)) return title(clean(s.attrs.par_addr_all).split(',')[0]);
+  if (s.geo) return s.geo.label.split(',').slice(0,2).join(',');
+  if (s.ppn) return 'Parcel ' + fmtPPN(s.ppn);
+  return s.q;
+}
+function renderList(){
+  $('siteList').innerHTML = S.sites.map((s, i) => `
+    <li data-i="${i}" class="${i===S.i?'on':''}">
+      <span class="num">${i+1}</span>
+      <span><span class="t">${esc(siteLabel(s))}</span><br>
+      <span class="m">${s.ppn ? fmtPPN(s.ppn) : esc(s.q)}${s.status==='notfound' ? ' · <span class="warn">not found</span>' : ''}${s.note ? ' · ' + esc(s.note) : ''}</span></span>
+    </li>`).join('');
+}
+function renderHeader(){
+  const n = S.sites.length, s = S.sites[S.i];
+  $('tourTitle').textContent = S.title || '';
+  $('counter').innerHTML = n ? `<span class="n">Site ${S.i+1} of ${n}</span><span class="a">${esc(siteLabel(s))}</span>` : `<span class="n">–</span><span class="a">Add sites to begin</span>`;
+  $('prev').disabled = !n || S.i === 0;
+  $('next').disabled = !n || S.i === n-1;
+  document.title = n ? `${S.i+1}/${n} · ${siteLabel(s)} — Walkthrough` : 'Virtual Site Walkthrough';
+}
+function renderCard(){
+  const s = S.sites[S.i], el = $('card');
+  if (!s) { el.innerHTML = ''; return; }
+  const a = s.attrs;
+  const noteHTML = `<div class="note" contenteditable="true" id="noteEd" data-ph="Add a note for this site…">${esc(s.note||'')}</div>`;
+  if (!a) {
+    el.innerHTML = `<h2>${esc(siteLabel(s))}</h2>
+      <div class="sub">${esc(s.q)}</div>${noteHTML}
+      <p class="${s.status==='notfound'?'warn':''}">${s.status==='pending' ? 'Looking up county records…' :
+        s.status==='error' ? 'County lookup failed: ' + esc(s.err||'') :
+        s.center ? 'No county parcel matched this entry — showing the location only.' : 'Couldn’t find this location. Check the parcel number or address.'}</p>`;
+    bindNote(); return;
+  }
+  const addr = clean(a.par_addr_all), owner = clean(a.deeded_owner), chips = [];
+  if (/LAND REUTILIZATION/i.test(owner)) chips.push(['Cuyahoga Land Bank','g']);
+  else if (/CITY OF CLEVELAND/i.test(owner)) chips.push(['City of Cleveland','g']);
+  const comCount = (+a.total_com_use_area > 0) ? (+a.com_bldg_count||0) : 0;   // county often lists com_bldg_count=1 with no commercial area
+  const bldg = (+a.res_bldg_count||0) + comCount;
+  if (!bldg && !(+a.gross_certified_building)) chips.push(['No buildings on record','g']);
+  else chips.push([bldg ? `${bldg} building${bldg===1?'':'s'} on record` : 'Building value on record','y']);
+  if (+a.certified_exempt_total > 0) chips.push(['Tax exempt','']);
+  if (+a.certified_abated_total > 0 || a.tax_abatement) chips.push(['Abatement','']);
+  const lu = clean(a.ext_luc_description || a.tax_luc_description), luc = a.ext_luc || a.tax_luc;
+  const size = [a.total_acreage!=null ? (+a.total_acreage).toFixed(a.total_acreage < 1 ? 3 : 2) + ' ac' : null,
+                a.total_square_ft ? num(a.total_square_ft) + ' sq ft' : null,
+                a.total_legal_front ? num(a.total_legal_front) + ' ft frontage' : null].filter(Boolean).join(' · ');
+  const bldgTxt = bldg ? [a.res_bldg_count ? `${a.res_bldg_count} residential${a.total_res_liv_area ? ` (${num(a.total_res_liv_area)} sq ft living)` : ''}` : '',
+                          comCount ? `${comCount} commercial${a.total_com_use_area ? ` (${num(a.total_com_use_area)} sq ft)` : ''}` : ''].filter(Boolean).join(', ') : 'None';
+  const xfer = a.transfer_date ? new Date(a.transfer_date).toLocaleDateString('en-US', { timeZone:'UTC' }) : null;
+  const mail = [clean(a.mail_addr_street), clean(a.mail_unit), [clean(a.mail_city), clean(a.mail_state)].filter(Boolean).join(', '), clean(a.mail_zip)].filter(Boolean).join(' ');
+  el.innerHTML = `
+    <h2>${addr ? esc(title(addr.split(',')[0])) : 'No street address on record'}</h2>
+    <div class="sub">Parcel <b>${fmtPPN(a.parcelpin)}</b>${a.par_city ? ' · ' + esc(title(a.par_city)) : ''}${a.par_zip ? ' ' + a.par_zip : ''}</div>
+    <div class="chips">${chips.map(([t,c]) => `<span class="chip ${c}">${esc(t)}</span>`).join('')}</div>
+    ${noteHTML}
+    <dl>
+      <dt>Owner</dt><dd>${esc(title(owner)) || '—'}</dd>
+      <dt>Land use</dt><dd>${esc(title(lu)) || '—'}${luc ? ` <span style="color:var(--muted)">(${esc(luc)})</span>` : ''}</dd>
+      <dt>Zoning</dt><dd>${esc(a.zoning_code) || '—'}</dd>
+      <dt>Lot size</dt><dd>${size || '—'}</dd>
+      <dt>Buildings</dt><dd>${bldgTxt}</dd>
+      <dt>Value${a.tax_year ? ` (${a.tax_year})` : ''}</dt><dd>${money(a.gross_certified_total)} <span style="color:var(--muted)">· land ${money(a.gross_certified_land)}, bldg ${money(a.gross_certified_building)}</span></dd>
+      <dt>Last transfer</dt><dd>${xfer ? `${xfer}${a.grantor ? ` from ${esc(title(a.grantor))}` : ''}${a.sales_amount ? ` · ${money(a.sales_amount)}` : ''}` : '—'}</dd>
+      <dt>Tax mailing</dt><dd>${esc(title(mail)) || '—'}</dd>
+    </dl>
+    <div class="links">
+      <a href="https://myplace.cuyahogacounty.gov/" target="_blank" id="lnkMyPlace" title="Copies the parcel number, then opens MyPlace — paste it into the search box">County MyPlace ↗</a>
+      ${s.center ? `<a href="https://www.google.com/maps/search/?api=1&query=${s.center[0]},${s.center[1]}" target="_blank">Google Maps ↗</a>` : ''}
+      <a href="#" id="lnkCopy">Copy parcel #</a>
+    </div>
+    <div class="src">Cuyahoga County Fiscal Office open parcel data. Building counts and values can lag demolitions.</div>`;
+  const copy = () => navigator.clipboard && navigator.clipboard.writeText(fmtPPN(a.parcelpin)).then(() => toast('Copied ' + fmtPPN(a.parcelpin)));
+  $('lnkCopy').onclick = e => { e.preventDefault(); copy(); };
+  $('lnkMyPlace').onclick = () => copy();
+  bindNote();
+}
+function bindNote(){
+  const ed = $('noteEd'); if (!ed) return;
+  ed.oninput = () => { S.sites[S.i].note = ed.innerText.trim(); saveHash(); renderList(); };
+  ed.onkeydown = e => e.stopPropagation();
+}
+function showStreetView(force){
+  const s = S.sites[S.i], sv = $('sv');
+  $('reset').disabled = $('gmaps').disabled = !s || !s.center;
+  if (!s || !s.center) {
+    sv.removeAttribute('src'); sv.style.visibility = 'hidden';
+    $('svMsg').textContent = s ? (s.status==='pending' ? 'Looking up this site…' : 'No location for this site.') : 'Paste a list of parcels to start the walkthrough.';
+    return;
+  }
+  const url = svURL(view(s));
+  $('svMsg').textContent = '';
+  sv.style.visibility = 'visible';
+  if (force || sv.getAttribute('src') !== url) {
+    if (force) { sv.src = 'about:blank'; setTimeout(() => { sv.src = url; }, 30); }
+    else sv.src = url;
+  }
+}
+
+/* ---------------- navigation ---------------- */
+async function go(i){
+  if (!S.sites.length) return;
+  i = Math.max(0, Math.min(S.sites.length - 1, i));
+  S.i = i; const tok = ++S.token, s = S.sites[i];
+  renderHeader(); renderList(); renderCard(); highlight(); saveHash();
+  if (s.center) S.map.flyTo(s.center, 19, { duration: .8 });
+  if (s.center && !s.cam) {
+    $('sv').style.visibility = 'hidden'; $('svMsg').textContent = 'Lining up the view…';
+    await ensureAim(s);
+    if (tok !== S.token) return;
+  }
+  showStreetView();
+  S.sites.slice(i+1, i+3).forEach(n => ensureAim(n));   // usually already done by the background pass
+}
+
+/* ---------------- loading a tour ---------------- */
+async function loadTour(items, ttl, startAt = 0){
+  S.title = ttl || ''; S.token++;
+  S.sites = items.map(it => Object.assign({ q:it.q, note:it.note||'', status:'pending' }, classify(it.q)));
+  S.i = Math.min(startAt, Math.max(0, S.sites.length-1));
+  renderHeader(); renderList(); renderCard(); showStreetView();
+  const prog = t => { $('progress').textContent = t; };
+
+  const ppnSites = S.sites.filter(s => s.kind === 'ppn');
+  if (ppnSites.length) {
+    prog(`Looking up ${ppnSites.length} parcel${ppnSites.length>1?'s':''}…`);
+    try {
+      const found = await byPPN([...new Set(ppnSites.map(s => s.ppn))]);
+      for (const s of ppnSites) { const f = found[s.ppn]; if (f) { applyFeature(s, f); s.status = 'ok'; } else s.status = 'notfound'; }
+    } catch (e) { ppnSites.forEach(s => { s.status = 'error'; s.err = e.message; }); }
+  }
+  const rest = S.sites.filter(s => s.kind !== 'ppn');
+  let done = 0;
+  const worker = async () => {
+    while (rest.length) {
+      const s = rest.shift();
+      prog(`Looking up addresses… ${++done}`);
+      try {
+        if (s.kind === 'll') {
+          const f = await byPoint(s.lat, s.lng);
+          if (f) { applyFeature(s, f); s.status = 'ok'; } else { s.center = [s.lat, s.lng]; s.status = 'notfound'; }
+        } else {
+          const f = await byAddress(s.q);
+          if (f) { applyFeature(s, f); s.status = 'ok'; }
+          else {
+            const g = await geocode(s.q).catch(() => null);
+            if (g) {
+              s.geo = g;
+              const f2 = await byPoint(g.lat, g.lng).catch(() => null);
+              if (f2) { applyFeature(s, f2); s.status = 'ok'; } else { s.center = [g.lat, g.lng]; s.status = 'notfound'; }
+            } else s.status = 'notfound';
+          }
+        }
+      } catch (e) { s.status = 'error'; s.err = e.message; }
+    }
+  };
+  await Promise.all([worker(), worker(), worker()]);
+
+  // line up Street View: the first site now, the rest in the background
+  const cur = S.sites[S.i];
+  if (cur && cur.center) { prog('Lining up Street View…'); await ensureAim(cur); }
+  prefetchAim(S.sites);
+  prog('');
+  drawSites();
+  const missing = S.sites.filter(s => !s.center).length;
+  if (missing) toast(`${missing} site${missing>1?'s':''} couldn’t be located — see the site list`);
+  closeSetup();
+  await go(S.i);
+}
+
+/* ---------------- share link (state in URL hash) ---------------- */
+let hashT;
+function saveHash(){
+  clearTimeout(hashT);
+  hashT = setTimeout(() => {
+    if (!S.sites.length) return;
+    const st = { t:S.title, i:S.i, s:S.sites.map(s => [s.q, s.note || '']) };
+    history.replaceState(null, '', '#tour=' + b64e(JSON.stringify(st)));
+  }, 250);
+}
+function readHash(){
+  const m = location.hash.match(/tour=([\w-]+)/); if (!m) return null;
+  try { return JSON.parse(b64d(m[1])); } catch (e) { return null; }
+}
+
+/* ---------------- CSV export ---------------- */
+function exportCSV(){
+  if (!S.sites.length) return;
+  const cols = ['#','Input','Parcel','Address','Owner','Land use','Zoning','Acres','Sq ft','Frontage ft','Buildings on record','Total value','Last transfer','Note','Lat','Lng','Street View'];
+  const rows = S.sites.map((s, i) => {
+    const a = s.attrs || {}, v = s.center ? view(s) : null;
+    return [i+1, s.q, a.parcelpin ? fmtPPN(a.parcelpin) : '', clean(a.par_addr_all), clean(a.deeded_owner), clean(a.ext_luc_description||a.tax_luc_description), a.zoning_code||'',
+      a.total_acreage ?? '', a.total_square_ft ?? '', a.total_legal_front ?? '', (+a.res_bldg_count||0)+((+a.total_com_use_area>0)?(+a.com_bldg_count||0):0), a.gross_certified_total ?? '',
+      a.transfer_date ? new Date(a.transfer_date).toISOString().slice(0,10) : '', s.note||'',
+      s.center ? s.center[0].toFixed(6) : '', s.center ? s.center[1].toFixed(6) : '', v ? gmapsPano(v) : ''];
+  });
+  const csv = [cols, ...rows].map(r => r.map(x => { x = String(x ?? ''); return /[",\n]/.test(x) ? `"${x.replace(/"/g,'""')}"` : x; }).join(',')).join('\r\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv' }));
+  a.download = (S.title || 'walkthrough').replace(/[^\w-]+/g,'_').slice(0,60) + '.csv';
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+/* ---------------- setup dialog ---------------- */
+function openSetup(){
+  $('inTitle').value = S.title || '';
+  if (S.sites.length) $('inList').value = S.sites.map(s => s.q + (s.note ? ' | ' + s.note : '')).join('\n');
+  $('cancel').style.display = S.sites.length ? '' : 'none';
+  $('setup').classList.add('open'); setTimeout(() => $('inList').focus(), 50);
+}
+function closeSetup(){ $('setup').classList.remove('open'); $('progress').textContent = ''; }
+function startFromSetup(){
+  const items = parseLines($('inList').value);
+  if (!items.length) { $('progress').textContent = 'Add at least one site.'; return; }
+  loadTour(items, $('inTitle').value.trim(), 0);
+}
+function loadFile(f){ const r = new FileReader(); r.onload = () => { $('inList').value = csvToLines(r.result); }; r.readAsText(f); }
+
+/* ---------------- wiring ---------------- */
+function wire(){
+  $('prev').onclick = () => go(S.i - 1);
+  $('next').onclick = () => go(S.i + 1);
+  $('btnList').onclick = () => $('drawer').classList.toggle('open');
+  $('closeDrawer').onclick = () => $('drawer').classList.remove('open');
+  $('siteList').onclick = e => { const li = e.target.closest('li'); if (li) go(+li.dataset.i); };
+  $('btnEdit').onclick = openSetup;
+  $('cancel').onclick = closeSetup;
+  $('go').onclick = startFromSetup;
+  $('btnFile').onclick = () => $('file').click();
+  $('file').onchange = e => e.target.files[0] && loadFile(e.target.files[0]);
+  const drop = $('drop');
+  drop.ondragover = e => { e.preventDefault(); drop.classList.add('over'); };
+  drop.ondragleave = () => drop.classList.remove('over');
+  drop.ondrop = e => { e.preventDefault(); drop.classList.remove('over'); const f = e.dataTransfer.files[0]; if (f) loadFile(f); };
+  $('btnLink').onclick = () => { saveHash(); setTimeout(() => navigator.clipboard.writeText(location.href).then(() => toast('Tour link copied')), 300); };
+  $('btnCsv').onclick = exportCSV;
+  $('btnFull').onclick = () => document.fullscreenElement ? document.exitFullscreen() : document.documentElement.requestFullscreen();
+  $('btnAll').onclick = () => S.allBounds && S.map.fitBounds(S.allBounds.pad(.15));
+  $('reset').onclick = async () => {
+    const s = S.sites[S.i]; if (!s || !s.center) return;
+    if (!s.cam) await ensureAim(s);
+    showStreetView(true);
+  };
+  $('gmaps').onclick = () => { const s = S.sites[S.i]; if (s && s.center) window.open(gmapsPano(view(s)), '_blank'); };
+
+  document.addEventListener('keydown', e => {
+    if ($('setup').classList.contains('open')) { if (e.key === 'Escape' && S.sites.length) closeSetup(); if ((e.ctrlKey||e.metaKey) && e.key === 'Enter') startFromSetup(); return; }
+    if (e.target.isContentEditable || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    const k = e.key;
+    if (k === 'ArrowRight' || k === 'PageDown' || k === ' ') { e.preventDefault(); go(S.i + 1); }
+    else if (k === 'ArrowLeft' || k === 'PageUp') { e.preventDefault(); go(S.i - 1); }
+    else if (k === 'Home') go(0);
+    else if (k === 'End') go(S.sites.length - 1);
+    else if (k === 'f' || k === 'F') $('btnFull').click();
+    else if (k === 'l' || k === 'L') $('btnList').click();
+    else if (k === 'r' || k === 'R') $('reset').click();
+    else if (k === 'Escape') $('drawer').classList.remove('open');
+  });
+  // Clicking into Street View moves keyboard focus into Google's frame, which would
+  // swallow arrow / clicker keys. Hand focus back to the page shortly after.
+  window.addEventListener('blur', () => setTimeout(() => {
+    if (document.activeElement && document.activeElement.tagName === 'IFRAME') { document.activeElement.blur(); window.focus(); }
+  }, 400));
+}
+
+initMap(); wire();
+const st = readHash();
+if (st && st.s && st.s.length) loadTour(st.s.map(r => ({ q:r[0], note:r[1] })), st.t, st.i || 0);
+else openSetup();
+</script>
+</body>
+</html>
